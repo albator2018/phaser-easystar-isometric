@@ -1,15 +1,17 @@
+var game = new Phaser.Game(800, 600, Phaser.CANVAS, '', this);
+
+var BasicGame = function () { };
+
+BasicGame.Boot = function () { };
+
+var isoGroup;
+var player;
+var cursorPos;
 var selectedTile;
 var moveTween;
-var game = new Phaser.Game(1024, 800, Phaser.CANVAS, '', null, true, false);
 
-var BasicGame = function (game) { };
+BasicGame.Boot.prototype = {
 
-BasicGame.Boot = function (game) { };
-
-var tileGroup, itemGroup, playerGroup, isoGroup, player, box, cursorPos
-
-BasicGame.Boot.prototype =
-{
     preload: function () {
 
         game.load.image('tile', './assets/tile.png');
@@ -24,18 +26,16 @@ BasicGame.Boot.prototype =
         // this point would be at screen coordinates 0, 0 (top left) which is usually undesirable.
         game.iso.anchor.setTo(0.5, 0.2);
 
-        game.input.onDown.add(movePlayer,this);
+        game.input.onDown.add(this.movePlayer,this);
 
         // Start the physics system
         game.physics.startSystem(Phaser.Plugin.Isometric.ISOARCADE);
 
     },
+
     create: function () {
 
         // Create ISO groups
-        tileGroup = game.add.group();
-        playerGroup = game.add.group();
-        itemGroup = game.add.group();
         isoGroup = game.add.group();
 
         // Let's make a load of tiles on a grid.
@@ -52,16 +52,10 @@ BasicGame.Boot.prototype =
         game.physics.isoArcade.gravity.setTo(0, 0, -500);
         game.physics.isoArcade.enable(player);
 
-        player.body.moves=false
+        player.body.moves=false;
         player.body.collideWorldBounds = true;
-        //game.physics.isoArcade.enable(tileGroup,true);
-        //game.physics.isoArcade.enable(isoGroup,true);
-
-        /*tileGroup.forEach(function(tile) {
-            tile.body.allowGravity=false
-        })*/
-        //tileGroup.bodyType=static
     },
+
     update: function () {
         // Update the cursor position.
         // It's important to understand that screen-to-isometric projection means you have to specify a z position manually, as this cannot be easily
@@ -69,7 +63,7 @@ BasicGame.Boot.prototype =
         game.iso.unproject(game.input.activePointer.position, cursorPos);
 
         // Loop through all tiles and test to see if the 3D position from above intersects with the automatically generated IsoSprite tile bounds.
-        tileGroup.forEach(function (tile) {
+        isoGroup.forEach(function (tile) {
             var inBounds = tile.isoBounds.containsXY(cursorPos.x, cursorPos.y);
 
 
@@ -93,71 +87,72 @@ BasicGame.Boot.prototype =
     render: function () {
         game.debug.text(game.time.fps || '--', 2, 14, "#a7aebe");
     },
+
     spawnTiles: function () {
         var tile;
 
-        myGrid = new Array();
+        var myGrid = [];
         var i = 0;
         for (var xx = 0; xx < 400; xx += 38) {
-            myGrid[i] = new Array();
+            myGrid[i] = [];
             for (var yy = 0; yy < 400; yy += 38) {
                 // Create a tile using the new game.add.isoSprite factory method at the specified position.
                 // The last parameter is the group you want to add it to (just like game.add.sprite)
-                tile = game.add.isoSprite(xx, yy, 0, 'tile', 0, tileGroup);
+                tile = game.add.isoSprite(xx, yy, 0, 'tile', 0, isoGroup);
                 tile.anchor.set(0.5, 0);
                 myGrid[i].push('tile');
-            };
+            }
             i++;
-        };
+        }
         //console.log(myGrid);
         easystar.setGrid(myGrid);
         easystar.setAcceptableTiles(['tile']);
+    },
+
+    movePlayer: function (){
+      var tile = selectedTile;
+      //console.log("tile", selectedTile);
+      //console.log(Math.floor(tile.isoX/38), Math.floor(tile.isoY/38));
+      //console.log(Math.floor(player.isoX/38), Math.floor(player.isoY/38));
+      //console.log(player.x, player.y);
+      //console.log(tile.x, tile.y);
+      //i understand that .x is in the game phase and .isoX is in phaser isometric
+      var i = 0;
+      function moveObject(object, p){
+        var StepX = p[i].x || false, StepY = p[i].y || false;
+        moveTween = game.add.tween( object ).to({ isoX: StepX*38, isoY: StepY*38}, 150);
+        moveTween.start();
+        moveTween.onComplete.add(function(){
+          i++;
+          if(i < p.length){
+            console.log(p[i]);
+            moveObject(object, p);
+          }else{
+            //player.play('idle');
+          }
+        });
+      }
+      easystar.findPath(Math.floor(player.isoX/38), Math.floor(player.isoY/38), Math.floor(tile.isoX/38), Math.floor(tile.isoY/38), function( path ) {
+        if (path === null) {
+          console.log("Path was not found.");
+        } else {
+          console.log(path);
+          console.log("Path was found.");
+          if (player.ismoving === false){
+            console.log("is not moving");
+            player.ismoving = true;
+            moveObject(player, path);
+          } else {
+            console.log("is moving");
+            player.ismoving = false;
+            moveTween.stop();
+          }
+        }
+      });
+      easystar.calculate();
     }
 };
-var easystar = new EasyStar.js();
 
+var easystar = new EasyStar.js();
 game.state.add('Boot', BasicGame.Boot);
 game.state.start('Boot');
-
-function movePlayer() {
-    var tile = selectedTile;
-    //console.log("tile", selectedTile);
-    //console.log(Math.floor(tile.isoX/38), Math.floor(tile.isoY/38));
-    //console.log(Math.floor(player.isoX/38), Math.floor(player.isoY/38));
-    //console.log(player.x, player.y);
-    //console.log(tile.x, tile.y);
-    //i understand that .x is in the game phase and .isoX is in phaser isometric
-    var i = 0;
-    function moveObject(object, p){
-      var StepX = p[i].x || false, StepY = p[i].y || false;
-      moveTween = game.add.tween( object ).to({ isoX: StepX*38, isoY: StepY*38}, 150);
-      moveTween.start();
-      moveTween.onComplete.add(function(){
-        i++;
-        if(i < p.length){
-          console.log(p[i]);
-          moveObject(object, p);
-        }else{
-          //player.play('idle');
-        };
-      })
-    }
-    easystar.findPath(Math.floor(player.isoX/38), Math.floor(player.isoY/38), Math.floor(tile.isoX/38), Math.floor(tile.isoY/38), function( path ) {
-      if (path === null) {
-        console.log("Path was not found.");
-      } else {
-        console.log(path);
-        console.log("Path was found.");
-        if (player.ismoving == false){
-          console.log("is not moving");
-          player.ismoving = true;
-          moveObject(player, path);
-        } else {
-          console.log("is moving");
-          player.ismoving = false;
-          moveTween.stop();
-        }
-      }
-    });
-    easystar.calculate();
-}
